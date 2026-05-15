@@ -44,7 +44,7 @@ OUTPUT_DIR = "./results"
 
 
 # ══════════════════════════════════════════════
-# DATA LOADING
+# DATA LOADING - AYA AMER
 # ══════════════════════════════════════════════
 
 def load_dataset(root: str, num_subjects: int, imgs_per_subject: int):
@@ -107,7 +107,7 @@ def split_dataset(dataset: dict, train_ratio: float):
 
 
 # ══════════════════════════════════════════════
-# PREPROCESSING
+# PREPROCESSING - AYA MAGDY
 # ══════════════════════════════════════════════
 
 def preprocess(img_path: str, size=(128, 128)) -> np.ndarray:
@@ -131,7 +131,7 @@ def preprocess(img_path: str, size=(128, 128)) -> np.ndarray:
 
 
 # ══════════════════════════════════════════════
-# METHOD 1 — ORB Features
+# METHOD 1 — ORB Features - MARYAM
 # ══════════════════════════════════════════════
 
 class ORBMethod:
@@ -212,7 +212,7 @@ class ORBMethod:
 
 
 # ══════════════════════════════════════════════
-# METHOD 2 — Gabor Filter Bank
+# METHOD 2 — Gabor Filter Bank - HEND
 # ══════════════════════════════════════════════
 
 class GaborMethod:
@@ -308,7 +308,7 @@ class GaborMethod:
 
 
 # ══════════════════════════════════════════════
-# METRICS
+# METRICS - KERMINA
 # ══════════════════════════════════════════════
 
 def compute_rank1(method, test_set: dict):
@@ -444,7 +444,7 @@ def compute_fpir_fnir(method, test_set: dict, threshold_pct=95):
     return fpir, fnir
 
 # ══════════════════════════════════════════════
-# PLOTTINGS
+# PLOTTINGS - AYA AMER
 # ══════════════════════════════════════════════
 
 def plot_gen_imp(gen1, imp1, gen2, imp2, out_dir):
@@ -498,7 +498,7 @@ def print_metrics_table(name, rank1, correct, total, eer, dp,
 
 
 # ══════════════════════════════════════════════
-# MAIN
+# MAIN - KERMINA
 # ══════════════════════════════════════════════
 
 def main():
@@ -578,3 +578,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

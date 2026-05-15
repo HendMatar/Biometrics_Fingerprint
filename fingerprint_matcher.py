@@ -7,7 +7,7 @@ Fingerprint Team Identification System
 
 Usage:
   python fingerprint_matcher.py --dataset ./dataset --probe ./probe.jpg
-
+ KERMINA & HEND
 """
 
 import os

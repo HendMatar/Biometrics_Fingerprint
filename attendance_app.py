@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 
 # -------------------------------------------------
-# IMPORT FROM main.py (unchanged)
+# IMPORT FROM main.py
 # -------------------------------------------------
 try:
     from main import GaborMethod, load_dataset, split_dataset
@@ -34,7 +34,7 @@ NUM_SUBJECTS = 100
 IMAGES_PER_SUBJECT = 10
 TRAIN_RATIO = 0.8
 
-# MUCH stricter threshold
+
 MATCH_THRESHOLD = 0.995
 
 LOG_FILE = "attendance_log.csv"
