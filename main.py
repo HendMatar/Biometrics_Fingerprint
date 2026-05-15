@@ -1,18 +1,16 @@
 """
-Fingerprint Identification System — SEC305 Biometrics Project
-Database: SOCOFing (Sokoto Coventry Fingerprint Dataset)
+Dataset: SOCOFing (Sokoto Coventry Fingerprint Dataset)
 Two Methods:
-  Method 1: ORB keypoint descriptors + BFMatcher (baseline)
-  Method 2: Gabor Filter Bank features + cosine similarity (improved)
+  Method 1: ORB keypoint descriptors + BFMatcher
+  Method 2: Gabor Filter Bank features + cosine similarity
 
-Requirements covered:
-  - Min 30 subjects (configurable, 100 default for better accuracy)
+Requirements:
+  - Min 30 subjects (100 for better accuracy)
   - 80/20 train/test split
   - Preprocessing, Feature Extraction, Matching
   - Gen/Imp distributions, ROC curve
   - D-prime, EER, TMR@FMR=1% and 0.01%
   - Rank-1 Identification Rate (TPIR), FPIR, FNIR
-  - Two methods compared
 """
 
 import os
@@ -37,22 +35,21 @@ np.random.seed(42)
 # ─────────────────────────────────────────────
 # CONFIGURATION — adjust paths here
 # ─────────────────────────────────────────────
-DATASET_ROOT = ".\SOCOFing"          # folder containing Real/ and Altered/
-NUM_SUBJECTS = 100                   # use 100 for >90% rank-1; minimum is 30
+DATASET_ROOT = ".\SOCOFing"          # folder containing Real and Altered
+NUM_SUBJECTS = 100                   
 IMAGES_PER_SUBJECT = 10             # SOCOFing has 10 real images per subject
 TRAIN_RATIO = 0.8
 OUTPUT_DIR = "./results"
-# ─────────────────────────────────────────────
+
 
 
 # ══════════════════════════════════════════════
-# 1. DATA LOADING
+# DATA LOADING
 # ══════════════════════════════════════════════
 
 def load_dataset(root: str, num_subjects: int, imgs_per_subject: int):
-    """
-    FIXED: Treats each specific FINGER as a unique 'subject'.
-    Pulls the 1 Real image + N Altered images for that specific finger.
+    """"
+    Pulls 1 Real image + N Altered images for specific finger.
     """
     root_path = Path(root)
     real_dir = root_path / "Real"
@@ -65,25 +62,23 @@ def load_dataset(root: str, num_subjects: int, imgs_per_subject: int):
 
     raw_dataset = defaultdict(list)
 
-    # 1. Load Real Images
+    # Load Real Images
     for f in real_dir.iterdir():
         if f.suffix.lower() in (".bmp", ".png", ".jpg", ".tif", ".tiff"):
             finger_id = f.stem # e.g., "100__M_Left_index_finger"
             raw_dataset[finger_id].append(str(f))
 
-    # 2. Load Altered Images (to get multiple samples of the SAME finger)
-    # Adjust these folder names if your SOCOFing extraction named them differently
+    # Load Altered Images
     for subfolder in ["Altered-Easy", "Altered-Medium", "Altered-Hard"]:
         alt_dir = altered_base / subfolder
         if alt_dir.exists():
             for f in alt_dir.iterdir():
                 if f.suffix.lower() in (".bmp", ".png", ".jpg", ".tif", ".tiff"):
-                    # Filename e.g., "100__M_Left_index_finger_CR.BMP"
                     # Strip the alteration tags to match the Real finger_id
                     finger_id = f.stem.replace("_CR", "").replace("_Obl", "").replace("_Zcut", "")
                     raw_dataset[finger_id].append(str(f))
 
-    # 3. Filter for fingers that have enough images to split
+    # Filter for fingers that have enough images to split
     valid_fingers = {k: v for k, v in raw_dataset.items() if len(v) >= imgs_per_subject}
     
     if len(valid_fingers) < num_subjects:
@@ -103,10 +98,6 @@ def load_dataset(root: str, num_subjects: int, imgs_per_subject: int):
 
 
 def split_dataset(dataset: dict, train_ratio: float):
-    """
-    Per-subject 80/20 split.
-    Returns train_set, test_set — same dict structure.
-    """
     train, test = {}, {}
     for sid, paths in dataset.items():
         n_train = max(1, int(len(paths) * train_ratio))
@@ -116,20 +107,20 @@ def split_dataset(dataset: dict, train_ratio: float):
 
 
 # ══════════════════════════════════════════════
-# 2. PREPROCESSING
+# PREPROCESSING
 # ══════════════════════════════════════════════
 
 def preprocess(img_path: str, size=(128, 128)) -> np.ndarray:
     """
     Load → grayscale → resize → CLAHE → Gaussian blur → normalize.
-    CLAHE dramatically improves ridge contrast — key for good features.
+    CLAHE improves ridge contrast.
     """
     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         raise FileNotFoundError(f"Cannot read: {img_path}")
     img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
 
-    # Contrast-Limited Adaptive Histogram Equalization
+    # Contrast-Limited Adaptive Histogram Equalization (CLAHE)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     img = clahe.apply(img)
 
@@ -140,7 +131,7 @@ def preprocess(img_path: str, size=(128, 128)) -> np.ndarray:
 
 
 # ══════════════════════════════════════════════
-# 3A. METHOD 1 — ORB Features (Baseline)
+# METHOD 1 — ORB Features
 # ══════════════════════════════════════════════
 
 class ORBMethod:
@@ -156,10 +147,10 @@ class ORBMethod:
 
     def extract(self, img: np.ndarray):
         kp, des = self.orb.detectAndCompute(img, None)
-        return des  # (N, 32) uint8 or None
+        return des 
 
     def enroll(self, train_set: dict):
-        """Build gallery from training images."""
+        #Build gallery from training images.
         for sid, paths in train_set.items():
             descs = []
             for p in paths:
@@ -168,15 +159,15 @@ class ORBMethod:
                 if des is not None:
                     descs.append(des)
             if descs:
-                # Stack all descriptors for this subject
+                # Stack all descriptors for subject
                 self.gallery[sid] = np.vstack(descs)
 
     def match_score(self, probe_des, gallery_des):
-        """Return similarity score (higher = more similar)."""
+        #Return similarity score (higher = more similar).
         if probe_des is None or gallery_des is None:
             return 0.0
         matches = self.bf.knnMatch(probe_des, gallery_des, k=2)
-        # Lowe's ratio test
+        #Lowe's ratio test
         good = []
         for m_n in matches:
             if len(m_n) == 2:
@@ -186,7 +177,7 @@ class ORBMethod:
         return len(good)
 
     def identify(self, probe_path: str):
-        """Return ranked list of (subject_id, score)."""
+        #Return ranked list of (subject_id, score).
         img = preprocess(probe_path)
         probe_des = self.extract(img)
         scores = {}
@@ -212,7 +203,7 @@ class ORBMethod:
                 # Genuine
                 gen_score = self.match_score(probe_des, self.gallery[sid])
                 genuine.append(gen_score)
-                # Impostors (sample 5 random other subjects)
+                # Impostors (sample 5 random subjects)
                 others = [s for s in sids if s != sid]
                 for other_sid in random.sample(others, min(5, len(others))):
                     imp_score = self.match_score(probe_des, self.gallery[other_sid])
@@ -221,19 +212,20 @@ class ORBMethod:
 
 
 # ══════════════════════════════════════════════
-# 3B. METHOD 2 — Gabor Filter Bank (Improved)
+# METHOD 2 — Gabor Filter Bank
 # ══════════════════════════════════════════════
 
 class GaborMethod:
     """
-    Gabor filter bank extracts ridge orientation/frequency features —
-    ideal for fingerprints. Gallery = mean feature vector per subject.
+    Gabor filter bank extracts ridge orientation/frequency features. 
+    Gallery = mean feature vector per subject.
     Matching via cosine similarity.
 
-    Why this beats ORB here:
+    Why this beats ORB:
     - Gabor filters are specifically designed for oriented textures (ridges).
     - The feature vector captures global ridge patterns, not local keypoints
-      (which can fail on low-quality prints).
+      (which can fail on low-quality).
+    - refer to bonus task (we used both to differentiate)
     """
     def __init__(self, num_orientations=8, num_scales=4):
         self.num_orientations = num_orientations
@@ -244,7 +236,7 @@ class GaborMethod:
     def _build_kernels(self):
         kernels = []
         for scale in range(self.num_scales):
-            freq = 0.05 + scale * 0.05          # spatial frequencies
+            freq = 0.05 + scale * 0.05  # spatial frequencies
             for i in range(self.num_orientations):
                 theta = i * np.pi / self.num_orientations
                 ksize = 31
@@ -255,7 +247,7 @@ class GaborMethod:
                     gamma=0.5, psi=0, ktype=cv2.CV_32F
                 )
                 kernels.append(k)
-        return kernels   # 32 kernels
+        return kernels   # 32
 
     def extract(self, img: np.ndarray) -> np.ndarray:
         """Apply each Gabor kernel and compute energy statistics."""
@@ -263,7 +255,7 @@ class GaborMethod:
         features = []
         for k in self.kernels:
             filtered = cv2.filter2D(img_f, cv2.CV_32F, k)
-            # Use 4×4 block-level mean energy (captures spatial distribution)
+            # 4×4 block-level mean energy (captures spatial distribution)
             h, w = filtered.shape
             bh, bw = h // 4, w // 4
             for bi in range(4):
@@ -274,7 +266,7 @@ class GaborMethod:
         return np.array(features, dtype=np.float32)
 
     def enroll(self, train_set: dict):
-        """Build gallery: average feature vector per subject."""
+        #Build gallery: avg feature vector per subject.
         for sid, paths in train_set.items():
             vecs = []
             for p in paths:
@@ -288,7 +280,7 @@ class GaborMethod:
         return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8))
 
     def identify(self, probe_path: str):
-        """Return ranked list of (subject_id, score)."""
+        #Return ranked list of ubject_id --> score
         img = preprocess(probe_path)
         probe_vec = self.extract(img)
         probe_vec = probe_vec / (np.linalg.norm(probe_vec) + 1e-8)
@@ -306,24 +298,23 @@ class GaborMethod:
                 img = preprocess(p)
                 probe_vec = self.extract(img)
                 probe_vec /= (np.linalg.norm(probe_vec) + 1e-8)
-                # Genuine
+                
                 genuine.append(self.cosine_sim(probe_vec, self.gallery[sid]))
-                # Impostors
-                others = [s for s in sids if s != sid]
+                
+                others = [s for s in sids if s != sid] #AKA Imposters
                 for other_sid in random.sample(others, min(5, len(others))):
                     impostor.append(self.cosine_sim(probe_vec, self.gallery[other_sid]))
         return np.array(genuine), np.array(impostor)
 
 
 # ══════════════════════════════════════════════
-# 4. METRICS
+# METRICS
 # ══════════════════════════════════════════════
 
 def compute_rank1(method, test_set: dict):
     """
-    Rank-1 Identification Rate = fraction of probes where the
-    correct subject is ranked #1 in the gallery.
-    Also computes FPIR and FNIR at decision threshold (95th percentile of impostor).
+    Rank-1 Identification Rate = fraction of probes where correct subject is ranked #1 in the gallery.
+    compute FPIR and FNIR at decision threshold (95th percentile of impostor).
     """
     correct = 0
     total   = 0
@@ -340,10 +331,9 @@ def compute_rank1(method, test_set: dict):
 
 
 def compute_eer(genuine_scores, impostor_scores):
-    """
-    Equal Error Rate: threshold where FMR ≈ FNMR.
-    Returns eer, threshold, fpr_array, tpr_array, auc_val.
-    """
+    
+    #Equal Error Rate: threshold where FMR ≈ FNMR.
+    
     labels = np.concatenate([np.ones(len(genuine_scores)),
                               np.zeros(len(impostor_scores))])
     scores = np.concatenate([genuine_scores, impostor_scores])
@@ -360,7 +350,6 @@ def compute_eer(genuine_scores, impostor_scores):
 def compute_dprime(genuine_scores, impostor_scores):
     """
     D-prime: separation between genuine and impostor score distributions.
-    d' = |μ_G - μ_I| / sqrt(0.5*(σ_G² + σ_I²))
     """
     mu_g, mu_i = np.mean(genuine_scores), np.mean(impostor_scores)
     sg, si = np.std(genuine_scores), np.std(impostor_scores)
@@ -391,15 +380,6 @@ def tmr_at_fmr(genuine_scores, impostor_scores, target_fmr):
 
 
 def compute_fpir_fnir(method, test_set: dict, threshold_pct=95):
-    """
-    FPIR: False Positive Identification Rate
-    FNIR: False Negative Identification Rate
-
-    FIX:
-    - Uses ONLY top-1 decision (standard biometric evaluation)
-    - Keeps threshold based on impostor distribution
-    - Avoids over-counting from full ranking list
-    """
 
     genuine_accepted = 0
     genuine_total = 0
@@ -419,7 +399,7 @@ def compute_fpir_fnir(method, test_set: dict, threshold_pct=95):
 
             top_sid, top_score = ranked[0]
 
-            # only use top-1 impostor decision
+            # only use top 1 impostor decision
             if top_sid != sid:
                 all_imp_scores.append(top_score)
 
@@ -436,7 +416,7 @@ def compute_fpir_fnir(method, test_set: dict, threshold_pct=95):
         print("Min impostor:", np.min(all_imp_scores))
 
     # ─────────────────────────────────────
-    # Compute FPIR / FNIR using TOP-1 ONLY
+    # Compute FPIR / FNIR using TOP 1 ONLY (collected above)
     # ─────────────────────────────────────
     for sid, paths in test_set.items():
         for p in paths:
@@ -446,13 +426,13 @@ def compute_fpir_fnir(method, test_set: dict, threshold_pct=95):
 
             top_sid, top_score = ranked[0]
 
-            # Genuine attempt
+            # Genuine trial
             if top_sid == sid:
                 genuine_total += 1
                 if top_score >= threshold:
                     genuine_accepted += 1
 
-            # Impostor attempt
+            # Impostor trial
             else:
                 impostor_total += 1
                 if top_score >= threshold:
@@ -464,7 +444,7 @@ def compute_fpir_fnir(method, test_set: dict, threshold_pct=95):
     return fpir, fnir
 
 # ══════════════════════════════════════════════
-# 5. PLOTTING
+# PLOTTINGS
 # ══════════════════════════════════════════════
 
 def plot_gen_imp(gen1, imp1, gen2, imp2, out_dir):
@@ -524,7 +504,7 @@ def print_metrics_table(name, rank1, correct, total, eer, dp,
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # ── Load & Split ──────────────────────────
+    # Load & Split
     print(f"\n[STEP 1] Loading dataset from: {DATASET_ROOT}")
     dataset = load_dataset(DATASET_ROOT, NUM_SUBJECTS, IMAGES_PER_SUBJECT)
     train_set, test_set = split_dataset(dataset, TRAIN_RATIO)
@@ -534,7 +514,7 @@ def main():
     print(f"[INFO] Train: {n_train} images | Test: {n_test} images")
     print(f"[INFO] Subjects: {len(dataset)} | Train ratio: {TRAIN_RATIO*100:.0f}%")
 
-    # ── Method 1: ORB ─────────────────────────
+    # Method 1: ORB 
     print("\n[STEP 2] Method 1 — ORB: Enrolling gallery...")
     orb_method = ORBMethod(n_features=500)
     orb_method.enroll(train_set)
@@ -550,7 +530,7 @@ def main():
     tmr001_orb = tmr_at_fmr(gen_orb, imp_orb, 0.0001)
     fpir_orb, fnir_orb = compute_fpir_fnir(orb_method, test_set)
 
-    # ── Method 2: Gabor ───────────────────────
+    # Method 2: Gabor
     print("\n[STEP 3] Method 2 — Gabor: Enrolling gallery...")
     gabor_method = GaborMethod(num_orientations=8, num_scales=4)
     gabor_method.enroll(train_set)
@@ -566,7 +546,7 @@ def main():
     tmr001_gab = tmr_at_fmr(gen_gab, imp_gab, 0.0001)
     fpir_gab, fnir_gab = compute_fpir_fnir(gabor_method, test_set)
 
-    # ── Print Results ─────────────────────────
+    # Results (in terminal)
     print_metrics_table("Method 1: ORB Keypoints",
         rank1_orb, correct_orb, total_orb,
         eer_orb, dp_orb, tmr1_orb, tmr001_orb, fpir_orb, fnir_orb)
@@ -589,7 +569,7 @@ def main():
     print(f"  Best Method (Gabor) Rank-1: {rate:.1f}%  →  Evaluation limit: {grade_pct}%")
     print(f"{'─'*55}")
 
-    # ── Plots ─────────────────────────────────
+    # Plots
     print("\n[STEP 4] Generating plots...")
     plot_gen_imp(gen_orb, imp_orb, gen_gab, imp_gab, OUTPUT_DIR)
     plot_roc(fpr_orb, tpr_orb, auc_orb, fpr_gab, tpr_gab, auc_gab, OUTPUT_DIR)
