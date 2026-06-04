@@ -6,12 +6,14 @@
 ## Files Overview
 
 ```
+To run locally:
+
 your_project/
 │
-├── main.py                    ← YOUR ORIGINAL CODE (not touched)
+├── main.py                    
 ├── collect_dataset.py         ← Step 1: Build your own fingerprint dataset
 ├── attendance_app_custom.py   ← Step 2: Live attendance system
-└── my_dataset/                ← Created automatically
+└── my_dataset/                
     ├── Ahmed/
     │   ├── ahmed_001.png
     │   └── ...
